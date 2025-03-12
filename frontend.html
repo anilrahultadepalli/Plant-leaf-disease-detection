@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plant Leaf Disease Detection</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f8f0;
+            color: #2f3b29;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background-color: #2a9d8f;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .top-section {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            align-items: center;
+            gap: 40px;
+        }
+
+        .left-content {
+            width: 50%;
+            padding: 30px;
+            background-color: #ffffff;
+            box-shadow: 0px 6px 16px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .left-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+
+        .right-content {
+            width: 50%;
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            color: red;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+            margin-top: 40px;
+        }
+
+        .info-box {
+            padding: 15px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        #predictBtn {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            color: white;
+            background-color: #264653;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        #predictBtn:hover {
+            background-color: #2a9d8f;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Plant Leaf Disease Detection</h1>
+    <p>Upload an image of a plant leaf, and our system will detect potential diseases.</p>
+</header>
+
+<div class="container">
+    <div class="top-section">
+        <div class="left-content">
+            <h3>Select an Image for Detection</h3>
+            <input type="file" id="fileInput" accept="image/*" style="margin-bottom: 10px;" onchange="previewImage()">
+            <button id="predictBtn" onclick="predictDisease()">Predict</button>
+            <img id="uploadedImage" style="display: none;">
+        </div>
+
+        <div class="right-content" id="resultContainer">
+            <p>Predicted Disease: <span id="diseaseName">-</span></p>
+        </div>
+    </div>
+
+    <div class="info-container">
+        <div class="info-box">
+            <h3>Precautions</h3>
+            <p id="precautions">-</p>
+        </div>
+        <div class="info-box">
+            <h3>Yield Improvement Suggestions</h3>
+            <p id="suggestions">-</p>
+        </div>
+        <div class="info-box">
+            <h3>Favorable Conditions</h3>
+            <p id="favorableConditions">-</p>
+        </div>
+        <div class="info-box">
+            <h3>Recommended Pesticides</h3>
+            <p id="pesticides">-</p>
+        </div>
+        <div class="info-box">
+            <h3>Recommended Fertilizers</h3>
+            <p id="fertilizers">-</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function predictDisease() {
+        const fileInput = document.getElementById('fileInput');
+        const diseaseName = document.getElementById('diseaseName');
+        const precautions = document.getElementById('precautions');
+        const suggestions = document.getElementById('suggestions');
+        const favorableConditions = document.getElementById('favorableConditions');
+        const pesticides = document.getElementById('pesticides');
+        const fertilizers = document.getElementById('fertilizers');
+
+        if (fileInput.files.length === 0) {
+            diseaseName.innerText = 'Please select an image first!';
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append("file", file);
+
+        diseaseName.innerText = 'Processing...';
+
+        try {
+            const response = await fetch("/predict", {
+                method: "POST",
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            diseaseName.innerText = data.predicted_disease || "No disease detected";
+            precautions.innerText = data.precautions || "No precautions available";
+            suggestions.innerText = data.suggestions || "No suggestions available";
+            favorableConditions.innerText = data.favorable_conditions || "No data available";
+            pesticides.innerText = data.pesticides || "No pesticides recommended";
+            fertilizers.innerText = data.fertilizers || "No fertilizers recommended";
+
+        } catch (error) {
+            console.error("Error:", error);
+            diseaseName.innerText = "Error connecting to the server.";
+        }
+    }
+</script>
+
+</body>
+</html>
