@@ -11,18 +11,14 @@ from sklearn.model_selection import train_test_split
 app = Flask(__name__)
 
 MODEL_PATH = 'rf_model.pkl'
-EXCEL_PATH = r"C:\Users\Rahul\OneDrive\Desktop\Book1.xlsx"
-DATASET_PATH = r"D:\college_M_project\project\rice_leaf_diseases"  # Path to images dataset
+EXCEL_PATH = r"D:\college_M_project\project\Book1.xlsx"
+DATASET_PATH = r"D:\college_M_project\project\rice_leaf_diseases"
 
-# Load Excel dataset
 def load_excel_data():
     """Loads disease data from Excel and extracts necessary columns."""
     excel_data = pd.read_excel(EXCEL_PATH, engine="openpyxl", header=0)
-
-    # Remove any extra spaces from column names
     excel_data.columns = excel_data.columns.str.strip()
 
-    # Ensure all required columns exist
     required_columns = [
         "Disease", "Precaution 1", "Precaution 2", "Precaution 3", "Precaution 4",
         "Favorable Conditions", "Suggestion for Yield 1", "Suggestion for Yield 2", "Suggestion for Yield 3",
@@ -35,43 +31,29 @@ def load_excel_data():
     if missing_columns:
         raise KeyError(f"Missing columns in Excel file: {missing_columns}")
 
-    # Merge multiple columns into single string
-    excel_data["Precautions"] = excel_data[
-        ["Precaution 1", "Precaution 2", "Precaution 3", "Precaution 4"]
-    ].apply(lambda x: ', '.join(x.dropna().astype(str)), axis=1)
-
-    excel_data["Suggestions"] = excel_data[
-        ["Suggestion for Yield 1", "Suggestion for Yield 2", "Suggestion for Yield 3"]
-    ].apply(lambda x: ', '.join(x.dropna().astype(str)), axis=1)
-
-    excel_data["Pesticides"] = excel_data[
-        ["Pesticide 1 (Content)", "Pesticide 1 (Products)",
-         "Pesticide 2 (Content)", "Pesticide 2 (Products)",
-         "Pesticide 3 (Content)", "Pesticide 3 (Products)"]
-    ].apply(lambda x: ', '.join(x.dropna().astype(str)), axis=1)
-
-    excel_data["Fertilizers"] = excel_data[
-        ["Fertilizer 1 (Content)", "Fertilizer 1 (Products)",
-         "Fertilizer 2 (Content)", "Fertilizer 2 (Products)"]
-    ].apply(lambda x: ', '.join(x.dropna().astype(str)), axis=1)
-
-    return excel_data[["Disease", "Favorable Conditions", "Precautions", "Suggestions", "Pesticides", "Fertilizers"]]
+    return excel_data[required_columns]
 
 disease_df = load_excel_data()
 
-# Extract disease information
 def get_disease_data(disease_name):
-    """Fetches disease-related information."""
+    """Fetches disease-related information with separated products."""
     disease_info = disease_df[disease_df['Disease'] == disease_name]
     if disease_info.empty:
         return {}
 
+    row = disease_info.iloc[0]
     return {
-        'favorable_conditions': disease_info.iloc[0].get('Favorable Conditions', 'No data available'),
-        'precautions': disease_info.iloc[0].get('Precautions', 'No data available'),
-        'suggestions': disease_info.iloc[0].get('Suggestions', 'No data available'),
-        'pesticides': disease_info.iloc[0].get('Pesticides', 'No data available'),
-        'fertilizers': disease_info.iloc[0].get('Fertilizers', 'No data available')
+        'favorable_conditions': row.get('Favorable Conditions', 'No data available'),
+        'precautions': [row[f'Precaution {i}'] for i in range(1, 5) if pd.notna(row.get(f'Precaution {i}'))],
+        'suggestions': [row[f'Suggestion for Yield {i}'] for i in range(1, 4) if pd.notna(row.get(f'Suggestion for Yield {i}'))],
+        'pesticides': {
+            'contents': [row[f'Pesticide {i} (Content)'] for i in range(1, 4) if pd.notna(row.get(f'Pesticide {i} (Content)'))],
+            'products': [row[f'Pesticide {i} (Products)'] for i in range(1, 4) if pd.notna(row.get(f'Pesticide {i} (Products)'))]
+        },
+        'fertilizers': {
+            'contents': [row[f'Fertilizer {i} (Content)'] for i in range(1, 3) if pd.notna(row.get(f'Fertilizer {i} (Content)'))],
+            'products': [row[f'Fertilizer {i} (Products)'] for i in range(1, 3) if pd.notna(row.get(f'Fertilizer {i} (Products)'))]
+        }
     }
 
 def extract_features_from_image(image):
@@ -88,7 +70,6 @@ def extract_features_from_image(image):
     hist = cv2.calcHist([image], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256]).flatten()
     return np.hstack([contrast, dissimilarity, homogeneity, energy, correlation, hist])
 
-# Load images and extract features
 def load_training_data():
     """Loads dataset, extracts features, and prepares training data."""
     X, y = [], []
@@ -110,7 +91,6 @@ def load_training_data():
 
     return np.array(X), np.array(y)
 
-# Train and save model
 def train_model():
     """Trains a RandomForest model using the extracted features."""
     X, y = load_training_data()
@@ -141,7 +121,6 @@ def predict():
     
     feature_vector = extract_features_from_image(image).reshape(1, -1)
     
-    # Load model
     try:
         model = joblib.load(MODEL_PATH)
     except (FileNotFoundError, ValueError):
@@ -154,13 +133,13 @@ def predict():
     response = {
         'predicted_disease': disease_name,
         'favorable_conditions': disease_data.get('favorable_conditions', 'No data available'),
-        'precautions': disease_data.get('precautions', 'No data available'),
-        'suggestions': disease_data.get('suggestions', 'No data available'),
-        'pesticides': disease_data.get('pesticides', 'No data available'),
-        'fertilizers': disease_data.get('fertilizers', 'No data available')
+        'precautions': disease_data.get('precautions', []),
+        'suggestions': disease_data.get('suggestions', []),
+        'pesticides': disease_data.get('pesticides', {'contents': [], 'products': []}),
+        'fertilizers': disease_data.get('fertilizers', {'contents': [], 'products': []})
     }
     return jsonify(response)
 
 if __name__ == '__main__':
-    train_model()  # Train the model before starting the app
+    train_model()
     app.run(debug=True, threaded=True)
