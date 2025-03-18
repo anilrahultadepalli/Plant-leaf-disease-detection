@@ -4,7 +4,7 @@ import numpy as np
 import joblib
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from skimage.feature import graycomatrix, graycoprops
 
 # Feature extraction function
@@ -62,8 +62,18 @@ print("Model saved as rf_model.pkl")
 
 # Evaluate the model
 y_pred = rf_model.predict(X_test)
+
+# Calculate overall metrics
 accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred, average='weighted')
+recall = recall_score(y_test, y_pred, average='weighted')
+f1 = f1_score(y_test, y_pred, average='weighted')
+
+# Print the results
 print(f"Model Accuracy: {accuracy:.2f}")
+print(f"Model Precision: {precision:.2f}")
+print(f"Model Recall: {recall:.2f}")
+print(f"Model F1-Score: {f1:.2f}")
 
 # Load trained model for testing
 rf_model = joblib.load('rf_model.pkl')
