@@ -11,48 +11,60 @@ from sklearn.model_selection import train_test_split
 app = Flask(__name__)
 
 MODEL_PATH = 'rf_model.pkl'
-EXCEL_PATH = r"D:\college_M_project\project\Book1.xlsx"
+EXCEL_PATH = r"C:\Users\Rahul\OneDrive\Desktop\dataset.xlsx"
 DATASET_PATH = r"D:\college_M_project\project\rice_leaf_diseases"
 
 def load_excel_data():
-    """Loads disease data from Excel and extracts necessary columns."""
-    excel_data = pd.read_excel(EXCEL_PATH, engine="openpyxl", header=0)
-    excel_data.columns = excel_data.columns.str.strip()
+    """Loads disease data from Excel and processes columns."""
+    try:
+        if not os.path.exists(EXCEL_PATH):
+            raise FileNotFoundError(f"Excel file not found at: {EXCEL_PATH}")
 
-    required_columns = [
-        "Disease", "Precaution 1", "Precaution 2", "Precaution 3", "Precaution 4",
-        "Favorable Conditions", "Suggestion for Yield 1", "Suggestion for Yield 2", "Suggestion for Yield 3",
-        "Pesticide 1 (Content)", "Pesticide 1 (Products)", "Pesticide 2 (Content)", "Pesticide 2 (Products)",
-        "Pesticide 3 (Content)", "Pesticide 3 (Products)", "Fertilizer 1 (Content)", "Fertilizer 1 (Products)",
-        "Fertilizer 2 (Content)", "Fertilizer 2 (Products)"
-    ]
+        excel_data = pd.read_excel(EXCEL_PATH, engine="openpyxl", header=0)
+        excel_data.columns = excel_data.columns.str.strip()
 
-    missing_columns = [col for col in required_columns if col not in excel_data.columns]
-    if missing_columns:
-        raise KeyError(f"Missing columns in Excel file: {missing_columns}")
+        required_columns = [
+            "Disease", "Precautions", "Favourable Conditions", 
+            "Suggestions for Yield Improvement", "Pesticide Content", "Pesticide Products",
+            "Fertilizer Content", "Fertilizer Products"
+        ]
 
-    return excel_data[required_columns]
+        missing_columns = [col for col in required_columns if col not in excel_data.columns]
+        if missing_columns:
+            raise KeyError(f"Missing columns in Excel file: {missing_columns}")
+
+        return excel_data
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        raise
+    except ValueError as e:
+        print(f"Error: Invalid Excel file format - {e}")
+        raise
+    except Exception as e:
+        print(f"Unexpected error while loading Excel file: {e}")
+        raise
 
 disease_df = load_excel_data()
 
 def get_disease_data(disease_name):
-    """Fetches disease-related information with separated products."""
+    """Fetches all disease-related information by aggregating rows."""
     disease_info = disease_df[disease_df['Disease'] == disease_name]
     if disease_info.empty:
         return {}
 
-    row = disease_info.iloc[0]
+    # Aggregate all values for each category
     return {
-        'favorable_conditions': row.get('Favorable Conditions', 'No data available'),
-        'precautions': [row[f'Precaution {i}'] for i in range(1, 5) if pd.notna(row.get(f'Precaution {i}'))],
-        'suggestions': [row[f'Suggestion for Yield {i}'] for i in range(1, 4) if pd.notna(row.get(f'Suggestion for Yield {i}'))],
+        'favorable_conditions': [row['Favourable Conditions'] for _, row in disease_info.iterrows() if pd.notna(row['Favourable Conditions'])],
+        'precautions': [row['Precautions'] for _, row in disease_info.iterrows() if pd.notna(row['Precautions'])],
+        'suggestions': [row['Suggestions for Yield Improvement'] for _, row in disease_info.iterrows() if pd.notna(row['Suggestions for Yield Improvement'])],
         'pesticides': {
-            'contents': [row[f'Pesticide {i} (Content)'] for i in range(1, 4) if pd.notna(row.get(f'Pesticide {i} (Content)'))],
-            'products': [row[f'Pesticide {i} (Products)'] for i in range(1, 4) if pd.notna(row.get(f'Pesticide {i} (Products)'))]
+            'contents': [row['Pesticide Content'] for _, row in disease_info.iterrows() if pd.notna(row['Pesticide Content'])],
+            'products': [row['Pesticide Products'] for _, row in disease_info.iterrows() if pd.notna(row['Pesticide Products'])]
         },
         'fertilizers': {
-            'contents': [row[f'Fertilizer {i} (Content)'] for i in range(1, 3) if pd.notna(row.get(f'Fertilizer {i} (Content)'))],
-            'products': [row[f'Fertilizer {i} (Products)'] for i in range(1, 3) if pd.notna(row.get(f'Fertilizer {i} (Products)'))]
+            'contents': [row['Fertilizer Content'] for _, row in disease_info.iterrows() if pd.notna(row['Fertilizer Content'])],
+            'products': [row['Fertilizer Products'] for _, row in disease_info.iterrows() if pd.notna(row['Fertilizer Products'])]
         }
     }
 
@@ -127,12 +139,12 @@ def predict():
         return jsonify({'error': 'Model not found or invalid'})
 
     prediction = model.predict(feature_vector)[0]
-    disease_name = disease_df.iloc[prediction]['Disease']
+    disease_name = disease_df['Disease'].unique()[prediction]  # Use unique diseases for mapping
     
     disease_data = get_disease_data(disease_name)
     response = {
         'predicted_disease': disease_name,
-        'favorable_conditions': disease_data.get('favorable_conditions', 'No data available'),
+        'favorable_conditions': disease_data.get('favorable_conditions', []),
         'precautions': disease_data.get('precautions', []),
         'suggestions': disease_data.get('suggestions', []),
         'pesticides': disease_data.get('pesticides', {'contents': [], 'products': []}),
